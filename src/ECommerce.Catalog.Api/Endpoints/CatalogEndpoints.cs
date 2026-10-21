@@ -69,6 +69,7 @@ public static class CatalogEndpoints
                 Sku = request.Sku,
                 Name = request.Name,
                 Description = request.Description,
+                Brand = request.Brand,
                 Price = request.Price,
                 AvailableStock = request.AvailableStock,
                 CategoryId = request.CategoryId
@@ -97,4 +98,4 @@ public static class CatalogEndpoints
         value.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 }
 
-public record CreateProductRequest(string Sku, string Name, string? Description, decimal Price, int AvailableStock, int CategoryId);
+public record CreateProductRequest(string Sku, string Name, string? Description, decimal Price, int AvailableStock, int CategoryId, string? Brand = null);
