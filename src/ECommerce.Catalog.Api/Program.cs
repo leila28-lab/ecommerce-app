@@ -8,8 +8,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 builder.Services.AddOpenApi();
-builder.Services.AddDbContext<CatalogDbContext>(options =>
-    options.UseInMemoryDatabase("catalog"));
+
+// PostgreSQL via Aspire: "catalogdb" is the database resource name declared in the AppHost.
+// Adds DbContext pooling, retries, a database health check, logging and telemetry.
+builder.AddNpgsqlDbContext<CatalogDbContext>("catalogdb");
 
 var app = builder.Build();
 
@@ -23,11 +25,16 @@ if (app.Environment.IsDevelopment())
 
 app.MapCatalogEndpoints();
 
-// Ensure the in-memory database is created and seeded on startup.
-using (var scope = app.Services.CreateScope())
+// Apply migrations on startup in Development only: elsewhere, a migration is an explicit,
+// reviewed step of the delivery pipeline.
+if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
 }
 
 app.Run();
+
+// Exposes the generated Program class to WebApplicationFactory in integration tests.
+public partial class Program { }
