@@ -1,0 +1,21 @@
+# Build outputs: a restore done on the workstation (obj/project.assets.json) points at host
+# paths and makes `dotnet publish --no-restore` fail with NETSDK1064 inside the image.
+**/bin/
+**/obj/
+**/TestResults/
+
+# Never send secrets or repository metadata to the build context.
+.env
+.env.*
+!.env.example
+.git/
+.github/
+.claude/
+.vs/
+**/.vs/
+
+# Not needed to build the images.
+tests/
+**/*.md
+docker-compose*.yml
+**/Dockerfile*
