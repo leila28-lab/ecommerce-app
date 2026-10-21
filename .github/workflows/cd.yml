@@ -1,0 +1,48 @@
+name: CD
+
+# Runs only after the CI workflow completed on main. Deployment steps are placeholders
+# (Helm arrives in lab 09): nothing is really deployed.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    # Never deploy a red or cancelled CI.
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying ${{ github.event.workflow_run.head_sha }} to staging"
+          # helm upgrade --install ecommerce ./deploy/helm/ecommerce --namespace staging
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    # The approval is enforced by the protection rules of the "production" environment
+    # on GitHub (required reviewers), not by this file.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Deploy to production
+        run: |
+          echo "Deploying ${{ github.event.workflow_run.head_sha }} to production"
+          # helm upgrade --install ecommerce ./deploy/helm/ecommerce --namespace production
