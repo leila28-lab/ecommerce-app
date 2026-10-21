@@ -1,0 +1,67 @@
+# Full stack without Aspire: PostgreSQL + the four services.
+# The database password comes from .env (not versioned): compose refuses to start without it.
+#   cp .env.example .env   then set CATALOG_DB_PASSWORD
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: catalogdb
+      POSTGRES_PASSWORD: "${CATALOG_DB_PASSWORD:?CATALOG_DB_PASSWORD is missing: copy .env.example to .env and set it}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d catalogdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  catalog:
+    build:
+      context: .
+      dockerfile: src/ECommerce.Catalog.Api/Dockerfile
+    image: ecommerce-catalog:dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Migrations (and /health) only run in Development, see Program.cs.
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__catalogdb: Host=postgres;Port=5432;Database=catalogdb;Username=postgres;Password=${CATALOG_DB_PASSWORD:?CATALOG_DB_PASSWORD is missing}
+
+  ordering:
+    build:
+      context: .
+      dockerfile: src/ECommerce.Ordering.Api/Dockerfile
+    image: ecommerce-ordering:dev
+    depends_on:
+      - catalog
+    environment:
+      services__catalog__http__0: http://catalog:8080
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/ECommerce.Gateway/Dockerfile
+    image: ecommerce-gateway:dev
+    depends_on:
+      - catalog
+      - ordering
+    environment:
+      services__catalog__http__0: http://catalog:8080
+      services__ordering__http__0: http://ordering:8080
+
+  web:
+    build:
+      context: .
+      dockerfile: src/ECommerce.Web/Dockerfile
+    image: ecommerce-web:dev
+    depends_on:
+      - gateway
+    environment:
+      services__gateway__http__0: http://gateway:8080
+    ports:
+      - "8080:8080" # the only published port
+
+volumes:
+  pgdata:
