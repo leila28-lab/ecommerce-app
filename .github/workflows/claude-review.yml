@@ -22,16 +22,17 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: "10.0.x"
 
       - name: Installer Claude Code
-        run: curl -fsSL https://claude.ai/install.sh | bash
+        # Pinned version from the npm registry, instead of an unpinned `curl | bash`.
+        run: npm install -g @anthropic-ai/claude-code@2.1.306
 
       - name: Revue du diff
         env:
@@ -44,7 +45,8 @@ jobs:
             donnée client dans un log ; URL de service codée en dur.
             Rends un tableau Markdown Fichier | Constat | Gravité, puis un verdict en une ligne.
             N'invente aucune ligne absente du diff." \
-            --allowedTools "Read,Grep,Glob" --max-turns 15 > review.md
+            --allowedTools "Read,Grep,Glob" --disallowedTools "Read(//proc/**)" \
+            --max-turns 15 > review.md
 
       - name: Revue du SQL des migrations (si une migration a changé)
         env:
@@ -61,8 +63,19 @@ jobs:
               claude -p "Relis migration.sql comme un DBA avant une mise en production :
                 opérations destructives, conversions avec perte, NOT NULL sur table non vide,
                 index manquants sur les clés étrangères. Tableau Markdown, puis verdict
-                SÛRE / À REVOIR / BLOQUANTE." --allowedTools "Read" --max-turns 5
+                SÛRE / À REVOIR / BLOQUANTE." --allowedTools "Read" \
+                --disallowedTools "Read(//proc/**)" --max-turns 5
             } >> review.md
+          fi
+
+      # The repo is public: refuse to publish a review that contains the API key.
+      - name: Vérifier que la revue ne contient pas la clé
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ] && grep -qF -- "$ANTHROPIC_API_KEY" review.md; then
+            echo "::error::review.md contains the API key, not publishing it."
+            exit 1
           fi
 
       - name: Publier la revue en commentaire
