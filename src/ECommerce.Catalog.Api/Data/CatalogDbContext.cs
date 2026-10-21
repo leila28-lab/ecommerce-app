@@ -32,6 +32,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
             entity.HasIndex(p => p.Sku).IsUnique();
             entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
             entity.Property(p => p.Description).HasMaxLength(2000);
+            entity.Property(p => p.Brand).HasMaxLength(100);
             entity.Property(p => p.Price).HasPrecision(18, 2);
 
             // A category that still has products cannot be deleted (ON DELETE RESTRICT).

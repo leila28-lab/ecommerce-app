@@ -70,6 +70,10 @@ namespace ECommerce.Catalog.Api.Migrations
                     b.Property<int>("AvailableStock")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Brand")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<int>("CategoryId")
                         .HasColumnType("integer");
 
