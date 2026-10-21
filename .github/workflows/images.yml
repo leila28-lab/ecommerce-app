@@ -1,0 +1,45 @@
+# Images — builds and scans the image of every service. BLOCKING on a fixable CRITICAL
+# vulnerability or on an image that runs as root.
+# Adapted from the lab 07 solution; actions pinned by commit SHA (see the lab 06 audit).
+name: Images
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['src/**', '.dockerignore', 'docker-compose.yml', '.github/workflows/images.yml']
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-scan:
+    name: Image ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # report ALL services, not only the first one that breaks
+      matrix:
+        service: [Catalog.Api, Ordering.Api, Gateway, Web]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Build context = repository root: the COPY lines of the Dockerfiles start with src/.
+      - name: Build
+        run: docker build -t scan-target:${{ github.sha }} -f src/ECommerce.${{ matrix.service }}/Dockerfile .
+
+      - name: Check the image does not run as root
+        run: |
+          user="$(docker inspect --format '{{.Config.User}}' scan-target:${{ github.sha }})"
+          echo "Image user: '$user'"
+          if [ -z "$user" ] || [ "$user" = "0" ] || [ "$user" = "root" ]; then
+            echo "::error::The image runs as root."; exit 1
+          fi
+
+      - name: Scan (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: scan-target:${{ github.sha }}
+          severity: CRITICAL
+          ignore-unfixed: true # without a fix available, a failure calls for no action
+          exit-code: "1"
