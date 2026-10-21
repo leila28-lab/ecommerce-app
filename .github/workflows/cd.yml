@@ -17,12 +17,16 @@ concurrency:
 
 jobs:
   deploy-staging:
-    # Never deploy a red or cancelled CI.
-    if: github.event.workflow_run.conclusion == 'success'
+    # Never deploy a red or cancelled CI, and never code coming from a fork: the branch
+    # filter above matches the branch NAME, so a fork PR from a branch called "main" would pass it.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     environment: staging
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
@@ -38,7 +42,7 @@ jobs:
     # on GitHub (required reviewers), not by this file.
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
