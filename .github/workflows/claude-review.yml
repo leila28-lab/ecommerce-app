@@ -1,0 +1,71 @@
+# Revue assistée par Claude Code, en mode headless — elle COMMENTE, elle ne décide rien.
+#
+# Deux revues, sur chaque Pull Request :
+#   - le diff complet : contrats d'API, tests, secrets, données personnelles dans les logs ;
+#   - le SQL des migrations, uniquement si une migration a changé.
+# L'agent n'a que des outils de LECTURE. Il ne merge pas, n'applique rien, ne bloque pas la PR :
+# la décision reste humaine.
+name: Revue Claude
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write          # le seul droit d'écriture : publier un commentaire
+
+jobs:
+  review:
+    name: Revue assistée
+    # Pas de secrets pour les PR venues d'un fork : on ne lance pas la revue dans ce cas.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Installer Claude Code
+        run: curl -fsSL https://claude.ai/install.sh | bash
+
+      - name: Revue du diff
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > pr.diff
+          claude -p "Relis pr.diff pour l'ecommerce-app (.NET 10, microservices Aspire).
+            Signale : contrat d'API modifié (route, DTO, champ JSON) et ses consommateurs ;
+            comportement modifié sans test ; secret ou chaîne de connexion avec mot de passe ;
+            donnée client dans un log ; URL de service codée en dur.
+            Rends un tableau Markdown Fichier | Constat | Gravité, puis un verdict en une ligne.
+            N'invente aucune ligne absente du diff." \
+            --allowedTools "Read,Grep,Glob" --max-turns 15 > review.md
+
+      - name: Revue du SQL des migrations (si une migration a changé)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q '/Migrations/'; then
+            # dotnet-ef pinned by dotnet-tools.json; the project must be restored first
+            # (a fresh runner has no obj/project.assets.json).
+            dotnet tool restore
+            dotnet restore src/ECommerce.Catalog.Api
+            dotnet ef migrations script --idempotent --project src/ECommerce.Catalog.Api -o migration.sql
+            {
+              echo; echo "## Revue du SQL des migrations"; echo
+              claude -p "Relis migration.sql comme un DBA avant une mise en production :
+                opérations destructives, conversions avec perte, NOT NULL sur table non vide,
+                index manquants sur les clés étrangères. Tableau Markdown, puis verdict
+                SÛRE / À REVOIR / BLOQUANTE." --allowedTools "Read" --max-turns 5
+            } >> review.md
+          fi
+
+      - name: Publier la revue en commentaire
+        run: gh pr comment ${{ github.event.pull_request.number }} --body-file review.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
