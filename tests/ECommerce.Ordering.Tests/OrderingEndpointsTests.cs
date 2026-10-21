@@ -24,7 +24,7 @@ public class OrderingEndpointsTests(OrderingApiFactory factory) : IClassFixture<
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var order = await response.Content.ReadFromJsonAsync<OrderResult>();
         Assert.Equal("Confirmed", order!.Status);
-        Assert.Equal(2 * 329.00m, order.Total);
+        Assert.Equal(2 * 329.00m + 119.99m, order.Total);
     }
 
     [Fact]
