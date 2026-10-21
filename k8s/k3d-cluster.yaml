@@ -1,0 +1,18 @@
+# Cluster k3d de la formation Dev & DevOps : 1 serveur + 2 agents, registre local,
+# ingress Traefik exposé sur le port 8081 de l'hôte (8080 est pris par docker compose, lab 07).
+# Usage : k3d cluster create --config k8s/k3d-cluster.yaml
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: ecom-dev
+servers: 1
+agents: 2
+registries:
+  create:
+    name: registry.localhost
+    host: "0.0.0.0"
+    hostPort: "5001"          # 5000 est pris par AirPlay sur macOS
+ports:
+  - port: 8081:80             # hôte 8081 -> loadbalancer -> ingress Traefik
+    nodeFilters:
+      - loadbalancer
